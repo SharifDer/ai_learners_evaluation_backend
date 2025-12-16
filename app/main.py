@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from app.database.db import Database
 from app.routes import assessment, questions, results
 from app.logger import get_logger
-
+from app.routes import feedback
 
 logger = get_logger(__name__)
 
@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(assessment.router, prefix="/assessment", tags=["Assessment"])
 app.include_router(questions.router, prefix="/questions", tags=["Questions"])
 app.include_router(results.router, prefix="/results", tags=["Results"])
+app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 
 
 @app.get("/")
