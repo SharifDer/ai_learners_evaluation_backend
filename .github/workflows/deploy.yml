@@ -1,0 +1,27 @@
+name: Deploy to Contabo Server
+
+on:
+  # push:
+  #   branches: [ main ]  # or master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SERVER_PORT }}
+        script: |
+          cd /opt/skill-assessment
+          git pull origin main
+          source venv/bin/activate
+          pip install -r requirements.txt
+          sudo systemctl restart skill-assessment
