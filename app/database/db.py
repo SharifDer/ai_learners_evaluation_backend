@@ -149,6 +149,15 @@ class Database:
                 FOREIGN KEY (selected_option_id) REFERENCES answer_options(id)
             );
             """
+            """
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_name TEXT,
+                feedback_text TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+
         ]
         
         async with cls.connection() as conn:
