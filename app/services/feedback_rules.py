@@ -146,10 +146,12 @@ async def generate_llm_feedback(scores: dict, weak_areas: list) -> str:
     {weak_summary}
 
     Write 4-5 lines of feedback focusing ONLY on the top 1-2 weaknesses. Be specific about what to practice and how. Skip generic advice.
-    Don't mention a specific question in your feedback, your feedback should be focused on topic users need to focuse on, and not questions.
+    Never mention a specific question in your feedback, your feedback should be focused on topic users need to focuse on, and not questions.
     return only plain text, no formatting is needed.
+    Plus don't start directly with the thing the user needs to learn, start first with a neutral or semi positive sentence then go to the feedback.
+    remember don't make feedback related to specific questions, make it about topics the learners need to focus on and learn.
     """
-    # Use OpenRouter instead
+ 
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",

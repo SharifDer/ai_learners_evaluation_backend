@@ -14,7 +14,12 @@ TASK_STATUS = {}
 async def get_assessment_data(session_id: str):
     """Single query to fetch all response data"""
     query = """
-    SELECT q.id as question_id, q.text, q.category, ao.score_weight as score
+    SELECT 
+        q.id as question_id, 
+        q.text, 
+        q.category, 
+        q.difficulty,        -- NEW
+        ao.score_weight as score
     FROM user_responses ur
     JOIN questions q ON ur.question_id = q.id
     JOIN answer_options ao ON ur.selected_option_id = ao.id
@@ -23,6 +28,7 @@ async def get_assessment_data(session_id: str):
     """
     rows = await Database.fetch_all(query, (session_id,))
     return [dict(row) for row in rows]
+
 
 
 def calculate_scores_from_data(data: list):
@@ -63,7 +69,8 @@ async def process_assessment_results(session_id: str, task_id: str):
     
     # Calculate scores (in-memory)
     scores = calculate_scores_from_data(all_data)
-    weak_areas = [row for row in all_data if row['score'] < 75]
+    from app.utils.helpers import select_priority_weak_areas
+    weak_areas = select_priority_weak_areas(all_data, max_items=5)
  
     # Generate feedback
     if settings.USE_LLM_FEEDBACK:
