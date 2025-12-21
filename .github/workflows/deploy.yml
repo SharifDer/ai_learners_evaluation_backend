@@ -19,6 +19,11 @@ jobs:
         script: |
           cd /opt/skill-assessment
           git pull origin main
+          
+          # Create keys directory and JSON file
+          mkdir -p keys
+          echo '{"DEEPSEEK_API": "${{ secrets.DEEPSEEK_API }}"}' > keys/LLM.json
+          
           source venv/bin/activate
           pip install -r requirements.txt
           sudo systemctl restart skill-assessment
