@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from app.schemas.requests import StartAssessment, SubmitAnswers, CompleteAssessment
 from app.schemas.responses import StartResponse, ResultResponse
 from app.database.db import Database
@@ -7,6 +7,7 @@ from app.services.gemini import process_assessment_results
 import json
 
 router = APIRouter()
+
 
 @router.post("/start", response_model=StartResponse)
 async def start_assessment(request: StartAssessment):
@@ -28,16 +29,15 @@ async def start_assessment(request: StartAssessment):
     
     return StartResponse(session_id=session_id, total_questions=count_res['count'])
 
+
 @router.post("/submit")
 async def submit_answers(request: SubmitAnswers):
-    # Check session
     session = await Database.fetch_one(
         "SELECT id FROM sessions WHERE session_id = ?", (request.session_id,)
     )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
         
-    # Prepare batch
     values = [
         (request.session_id, ans.question_id, ans.selected_option_id)
         for ans in request.answers
@@ -58,18 +58,12 @@ async def submit_answers(request: SubmitAnswers):
 
 @router.post("/complete", response_model=ResultResponse)
 async def complete_assessment(request: CompleteAssessment):
-    session = await Database.fetch_one(
-        "SELECT id FROM sessions WHERE session_id = ?", (request.session_id,)
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
     task_id = generate_task_id()
     
-    # Process synchronously
+    # Process assessment
     await process_assessment_results(request.session_id, task_id)
     
-    # Fetch results
+    # Fetch results (removed redundant session check)
     session_data = await Database.fetch_one(
         """
         SELECT s.session_id, t.name as track, s.overall_score, s.recommendation_text, s.status
@@ -79,6 +73,9 @@ async def complete_assessment(request: CompleteAssessment):
         """,
         (request.session_id,)
     )
+    
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
     
     scores = json.loads(session_data['overall_score']) if session_data['overall_score'] else {}
     
