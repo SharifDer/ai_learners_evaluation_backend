@@ -63,16 +63,13 @@ async def process_assessment_results(session_id: str, task_id: str):
     
     # Calculate scores (in-memory)
     scores = calculate_scores_from_data(all_data)
-    print(f"[DEBUG] Scores: {scores}")
-    
-    # Filter weak areas (in-memory)
     weak_areas = [row for row in all_data if row['score'] < 75]
-    print(f"[DEBUG] Weak areas count: {len(weak_areas)}")
-    
+ 
     # Generate feedback
     if settings.USE_LLM_FEEDBACK:
         from app.services.feedback_rules import generate_llm_feedback
         recommendation = await generate_llm_feedback(scores, weak_areas)
+        logger.info("feedback has been generted with LLM")
     else:
         recommendation = generate_rule_based_feedback(scores, weak_areas)
     
