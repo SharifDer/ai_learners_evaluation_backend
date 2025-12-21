@@ -1,3 +1,8 @@
+import httpx
+from app.config import settings
+
+
+
 """Rule-based feedback generation system"""
 
 # Topic grouping: maps question IDs to general topics
@@ -125,3 +130,38 @@ def generate_rule_based_feedback(scores: dict, weak_areas: list) -> str:
     feedback = f"{intro}. {action_verb} {topic_text}. {action_text.capitalize()}."
     
     return feedback
+
+async def generate_llm_feedback(scores: dict, weak_areas: list) -> str:
+    """Generate feedback using DeepSeek via OpenRouter"""
+    
+    weak_summary = "\n".join([
+        f"- {area['text']} (score: {area['score']})" 
+        for area in weak_areas[:5]
+    ])
+    
+    prompt = f"""You are an AI/ML career advisor and senior in this field. Based on this skill assessment:
+    Score: {scores.get('total', 0)}/100
+
+    Top weaknesses:
+    {weak_summary}
+
+    Write 4-5 lines of feedback focusing ONLY on the top 1-2 weaknesses. Be specific about what to practice and how. Skip generic advice.
+    Don't mention a specific question in your feedback, your feedback should be focused on topic users need to focuse on, and not questions.
+    return only plain text, no formatting is needed.
+    """
+    # Use OpenRouter instead
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.DEEPSEEK_API}"
+            },
+            json={
+                "model": "deepseek/deepseek-chat", 
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 200
+            },
+            timeout=30.0
+        )
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
