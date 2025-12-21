@@ -1,40 +1,40 @@
-"""Assessment processing service - now rule-based"""
+"""Assessment processing service"""
 import json
 from app.database.db import Database
 from app.services.feedback_rules import generate_rule_based_feedback
 from app.config import settings
 from app.logger import get_logger
 
-
 logger = get_logger(__name__)
-
 
 # In-memory store for task status 
 TASK_STATUS = {}
 
 
-async def calculate_scores(session_id: str):
-    """
-    Calculate scores based on user responses.
-    Returns: {"total": 85.0, "Foundations": 90.0, ...}
-    """
+async def get_assessment_data(session_id: str):
+    """Single query to fetch all response data"""
     query = """
-    SELECT q.category, ao.score_weight
+    SELECT q.id as question_id, q.text, q.category, ao.score_weight as score
     FROM user_responses ur
     JOIN questions q ON ur.question_id = q.id
     JOIN answer_options ao ON ur.selected_option_id = ao.id
     WHERE ur.session_id = ?
+    ORDER BY ao.score_weight ASC
     """
     rows = await Database.fetch_all(query, (session_id,))
-    
-    if not rows:
+    return [dict(row) for row in rows]
+
+
+def calculate_scores_from_data(data: list):
+    """Calculate scores from fetched data (in-memory, no DB calls)"""
+    if not data:
         return {"total": 0.0}
     
-    category_data = {} # {cat: [scores...]}
+    category_data = {}
     
-    for row in rows:
+    for row in data:
         cat = row['category']
-        weight = row['score_weight']
+        weight = row['score']
         if cat not in category_data:
             category_data[cat] = []
         category_data[cat].append(weight)
@@ -53,38 +53,30 @@ async def calculate_scores(session_id: str):
     return final_scores
 
 
-async def get_weak_areas(session_id: str):
-    """Fetch questions where the user scored low (< 75)"""
-    query = """
-    SELECT q.id as question_id, q.text, q.category, ao.score_weight as score
-    FROM user_responses ur
-    JOIN questions q ON ur.question_id = q.id
-    JOIN answer_options ao ON ur.selected_option_id = ao.id
-    WHERE ur.session_id = ? AND ao.score_weight < 75
-    ORDER BY ao.score_weight ASC
-    """
-    rows = await Database.fetch_all(query, (session_id,))
-    return [dict(row) for row in rows]
-
-
 async def process_assessment_results(session_id: str, task_id: str):
-    """Background task to score and generate recommendation"""
+    """Process assessment with single DB query"""
     print(f"[DEBUG] Starting processing for {session_id}")
     TASK_STATUS[task_id] = "PROCESSING"
     
-    # 1. Scoring
-    print("[DEBUG] Calculating scores...")
-    scores = await calculate_scores(session_id)
+    # Single DB call for all data
+    all_data = await get_assessment_data(session_id)
+    
+    # Calculate scores (in-memory)
+    scores = calculate_scores_from_data(all_data)
     print(f"[DEBUG] Scores: {scores}")
     
-    # 2. Context Gathering
-    weak_areas = await get_weak_areas(session_id)
+    # Filter weak areas (in-memory)
+    weak_areas = [row for row in all_data if row['score'] < 75]
     print(f"[DEBUG] Weak areas count: {len(weak_areas)}")
     
-    # 3. Rule-based feedback (CHANGED FROM GEMINI)
-    recommendation = generate_rule_based_feedback(scores, weak_areas)
+    # Generate feedback
+    if settings.USE_LLM_FEEDBACK:
+        from app.services.feedback_rules import generate_llm_feedback
+        recommendation = await generate_llm_feedback(scores, weak_areas)
+    else:
+        recommendation = generate_rule_based_feedback(scores, weak_areas)
     
-    # 4. Persistence
+    # Update session
     await Database.execute(
         """
         UPDATE sessions 
